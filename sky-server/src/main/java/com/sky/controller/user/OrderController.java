@@ -60,11 +60,17 @@ public class OrderController {
     public Result<OrderPaymentVO> payment(@RequestBody OrderPaymentDTO orderPaymentDTO) {
         log.info("订单支付：{}", orderPaymentDTO);
         
-        // 模拟支付逻辑：直接修改订单状态
+        // 模拟支付逻辑：直接调用paySuccess方法修改订单状态
         orderService.paySuccess(orderPaymentDTO.getOrderNumber());
         
-        // 返回空的OrderPaymentVO对象，确保小程序前端不会卡死
-        OrderPaymentVO orderPaymentVO = OrderPaymentVO.builder().build();
+        // 返回空的OrderPaymentVO对象，确保小程序前端不会因解析失败而卡死
+        OrderPaymentVO orderPaymentVO = OrderPaymentVO.builder()
+                .nonceStr("")
+                .paySign("")
+                .timeStamp("")
+                .signType("")
+                .packageStr("")
+                .build();
         return Result.success(orderPaymentVO);
     }
 

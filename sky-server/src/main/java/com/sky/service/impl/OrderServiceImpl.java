@@ -77,7 +77,10 @@ public class OrderServiceImpl implements OrderService {
         order.setStatus(Orders.PENDING_PAYMENT);
         order.setNumber(String.valueOf(System.currentTimeMillis()));
         order.setPhone(addressBook.getPhone());
-        order.setAddress(addressBook.getDetail());
+        // 完善地址拼接：省+市+区+详细地址
+        String fullAddress = addressBook.getProvinceName() + addressBook.getCityName() + 
+                           addressBook.getDistrictName() + addressBook.getDetail();
+        order.setAddress(fullAddress);
         order.setConsignee(addressBook.getConsignee());
         order.setUserId(userId);
 
@@ -246,11 +249,10 @@ public class OrderServiceImpl implements OrderService {
                 .cancelTime(LocalDateTime.now())
                 .build();
         
-        // 如果是已支付（待接单）状态取消，理论上需要调用微信退款接口
-        // 但由于我们是模拟支付，此处只需修改订单状态
+        // 如果是已支付（待接单）状态取消，将支付状态设置为退款
         if (ordersDB.getStatus().equals(Orders.TO_BE_CONFIRMED)) {
-            // 已支付订单取消，可以记录退款相关信息
-            log.info("订单{}已支付，模拟退款处理", id);
+            orders.setPayStatus(Orders.REFUND); // 支付状态改为退款
+            log.info("订单{}已支付，模拟退款处理，支付状态设置为退款", id);
         }
         
         // 执行更新
