@@ -2,7 +2,6 @@ package com.sky.controller.admin;
 
 import com.sky.dto.SetmealDTO;
 import com.sky.dto.SetmealPageQueryDTO;
-import com.sky.entity.Setmeal;
 import com.sky.result.PageResult;
 import com.sky.result.Result;
 import com.sky.service.SetmealService;
@@ -11,10 +10,12 @@ import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.web.bind.annotation.*;
 
-import javax.websocket.server.PathParam;
 import java.util.List;
+import java.util.Set;
 
 @Slf4j
 @RestController
@@ -25,6 +26,9 @@ public class SetmealController {
     @Autowired
     private SetmealService setmealService;
 
+    @Autowired
+    private RedisTemplate redisTemplate;
+
     /**
      * 新增套餐
      * @param setmealDTO
@@ -32,11 +36,11 @@ public class SetmealController {
      */
     @ApiOperation("新增套餐")
     @PostMapping
+    @CacheEvict(cacheNames = "setmealCache", allEntries = true)
     public Result save(@RequestBody SetmealDTO setmealDTO) {
         log.info("新增套餐：{}", setmealDTO);
         setmealService.savaWithDish(setmealDTO);
         return Result.success();
-
     }
 
     /**
@@ -55,6 +59,7 @@ public class SetmealController {
      */
     @ApiOperation("批量删除套餐")
     @DeleteMapping
+    @CacheEvict(cacheNames = "setmealCache", allEntries = true)
     public Result delete(@RequestParam List<Long> ids) {
         log.info("批量删除套餐：{}",ids);
         setmealService.delete(ids);
@@ -68,24 +73,38 @@ public class SetmealController {
      */
     @ApiOperation("修改套餐")
     @PutMapping
+    @CacheEvict(cacheNames = "setmealCache", allEntries = true)
     public Result update(@RequestBody SetmealDTO setmealDTO) {
         log.info("修改套餐：{}", setmealDTO);
         setmealService.update(setmealDTO);
         return Result.success();
-
     }
+
+    /**
+     * 根据套餐id查询套餐
+     * @param id
+     * @return
+     */
     @GetMapping("/{id}")
     @ApiOperation("根据id查询套餐")
     public Result<SetmealVO> getById(@PathVariable Long id) {
         SetmealVO setmealVO = setmealService.getByIdWithDish(id);
         return Result.success(setmealVO);
     }
+
+    /**
+     * 启用禁用套餐
+     * @param status
+     * @param id
+     * @return
+     * @throws Exception
+     */
     @PostMapping("/status/{status}")
     @ApiOperation("启用禁用套餐")
+    @CacheEvict(cacheNames = "setmealCache", allEntries = true)
     public Result startOrStop(@PathVariable Integer status, Long id) throws  Exception{
         log.info("启用禁用套餐：{}", status);
         setmealService.startOrStop(status,id);
         return Result.success();
     }
-
 }

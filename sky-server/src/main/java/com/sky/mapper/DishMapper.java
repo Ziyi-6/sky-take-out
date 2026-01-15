@@ -57,5 +57,24 @@ public interface DishMapper {
      */
     void deleteByIds(List<Long> ids);
 
+    /**
+     * 动态条件查询菜品
+     * @param dish
+     * @return
+     */
+    List<Dish> list(Dish dish);
 
+    /**
+     * 更新菜品基本信息
+     * @param dish
+     */
+    @AutoFill(OperationType.UPDATE)
+    void update(Dish dish);
+
+    /**
+     * 根据分类ID查询菜品
+     * @return
+     */
+    @Select("select * from dish where category_id= #{categoryId}")
+    List<Dish> getDishesByCategoryId(Long categoryId);
 }

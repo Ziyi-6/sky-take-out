@@ -1,20 +1,11 @@
-package com.sky.entity;
+package com.sky.dto;
 
-import lombok.AllArgsConstructor;
-import lombok.Builder;
 import lombok.Data;
-import lombok.NoArgsConstructor;
 
 import java.io.Serializable;
 
-/**
- * 地址簿
- */
 @Data
-@Builder
-@NoArgsConstructor
-@AllArgsConstructor
-public class AddressBook implements Serializable {
+public class AddressBookDTO implements Serializable {
 
     private static final long serialVersionUID = 1L;
 

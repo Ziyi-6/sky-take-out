@@ -1,0 +1,267 @@
+package com.sky.service.impl;
+
+import com.github.pagehelper.Page;
+import com.github.pagehelper.PageHelper;
+import com.github.pagehelper.PageInfo;
+import com.sky.context.BaseContext;
+import com.sky.dto.OrdersPageQueryDTO;
+import com.sky.dto.OrdersSubmitDTO;
+import com.sky.entity.*;
+import com.sky.exception.AddressBookBusinessException;
+import com.sky.exception.OrderBusinessException;
+import com.sky.exception.ShoppingCartBusinessException;
+import com.sky.mapper.*;
+import com.sky.result.PageResult;
+import com.sky.service.OrderService;
+import com.sky.vo.OrderPaymentVO;
+import com.sky.vo.OrderSubmitVO;
+import com.sky.vo.OrderVO;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.BeanUtils;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+
+@Service
+@Slf4j
+public class OrderServiceImpl implements OrderService {
+
+    @Autowired
+    private OrderMapper orderMapper;
+    
+    @Autowired
+    private OrderDetailMapper orderDetailMapper;
+    
+    @Autowired
+    private AddressBookMapper addressBookMapper;
+    
+    @Autowired
+    private ShoppingCartMapper shoppingCartMapper;
+    
+    @Autowired
+    private UserMapper userMapper;
+
+    /**
+     * 用户下单
+     * @param ordersSubmitDTO
+     * @return
+     */
+    @Override
+    @Transactional
+    public OrderSubmitVO submitOrder(OrdersSubmitDTO ordersSubmitDTO) {
+        // 1. 校验地址ID是否真实存在
+        AddressBook addressBook = addressBookMapper.getById(ordersSubmitDTO.getAddressBookId());
+        if (addressBook == null) {
+            throw new AddressBookBusinessException("地址不存在");
+        }
+
+        // 2. 校验当前用户购物车是否为空
+        Long userId = getCurrentUserId();
+        ShoppingCart shoppingCart = new ShoppingCart();
+        shoppingCart.setUserId(userId);
+        List<ShoppingCart> shoppingCartList = shoppingCartMapper.list(shoppingCart);
+        if (shoppingCartList == null || shoppingCartList.isEmpty()) {
+            throw new ShoppingCartBusinessException("购物车为空");
+        }
+
+        // 3. 向orders表插入1条记录
+        Orders order = new Orders();
+        BeanUtils.copyProperties(ordersSubmitDTO, order);
+        order.setOrderTime(LocalDateTime.now());
+        order.setPayStatus(Orders.UN_PAID);
+        order.setStatus(Orders.PENDING_PAYMENT);
+        order.setNumber(String.valueOf(System.currentTimeMillis()));
+        order.setPhone(addressBook.getPhone());
+        order.setAddress(addressBook.getDetail());
+        order.setConsignee(addressBook.getConsignee());
+        order.setUserId(userId);
+
+        orderMapper.insert(order);
+
+        // 4. 向order_detail表批量插入购物车中的商品明细
+        List<OrderDetail> orderDetailList = new ArrayList<>();
+        for (ShoppingCart cart : shoppingCartList) {
+            OrderDetail orderDetail = new OrderDetail();
+            orderDetail.setOrderId(order.getId());
+            orderDetail.setName(cart.getName());
+            orderDetail.setImage(cart.getImage());
+            orderDetail.setDishId(cart.getDishId());
+            orderDetail.setSetmealId(cart.getSetmealId());
+            orderDetail.setDishFlavor(cart.getDishFlavor());
+            orderDetail.setNumber(cart.getNumber());
+            orderDetail.setAmount(cart.getAmount());
+            orderDetailList.add(orderDetail);
+        }
+        orderDetailMapper.insertBatch(orderDetailList);
+
+        // 5. 下单成功后，清空当前用户的购物车数据
+        shoppingCartMapper.deleteByUserId(userId);
+
+        // 6. 封装VO返回结果
+        OrderSubmitVO orderSubmitVO = OrderSubmitVO.builder()
+                .id(order.getId())
+                .orderNumber(order.getNumber())
+                .orderAmount(order.getAmount())
+                .orderTime(order.getOrderTime())
+                .build();
+
+        return orderSubmitVO;
+    }
+
+    /**
+     * 模拟支付成功
+     * @param orderNumber
+     */
+    @Override
+    public void paySuccess(String orderNumber) {
+        // 1. 根据订单号查询订单
+        Orders ordersDB = orderMapper.getByNumberAndUserId(orderNumber, BaseContext.getCurrentId());
+
+        // 2. 构造新对象，只修改需要更新的字段（符合开发规范）
+        Orders orders = Orders.builder()
+                .id(ordersDB.getId())
+                .status(Orders.TO_BE_CONFIRMED) // 状态改为 2（待接单）
+                .payStatus(Orders.PAID)         // 支付状态改为 1（已支付）
+                .checkoutTime(LocalDateTime.now()) // 记录结账时间
+                .build();
+
+        // 3. 执行更新
+        orderMapper.update(orders);
+    }
+
+    /**
+     * 查询历史订单
+     * @param ordersPageQueryDTO
+     * @return
+     */
+    @Override
+    public PageResult pageQuery(OrdersPageQueryDTO ordersPageQueryDTO) {
+        // 设置当前用户ID
+        Long userId = BaseContext.getCurrentId();
+        
+        // 开启分页
+        PageHelper.startPage(ordersPageQueryDTO.getPage(), ordersPageQueryDTO.getPageSize());
+        
+        // 设置用户ID到DTO中
+        ordersPageQueryDTO.setUserId(userId);
+        
+        // 分页查询 - 这里返回的是List<Orders>，需要用PageInfo包装
+        List<Orders> ordersList = orderMapper.pageQuery(ordersPageQueryDTO);
+        PageInfo<Orders> pageInfo = new PageInfo<>(ordersList);
+        
+        // 遍历订单列表，为每个订单查询订单明细
+        List<OrderVO> orderVOList = new ArrayList<>();
+        for (Orders order : ordersList) {
+            OrderVO orderVO = new OrderVO();
+            BeanUtils.copyProperties(order, orderVO);
+            
+            // 查询订单明细
+            List<OrderDetail> orderDetailList = orderDetailMapper.getByOrderId(order.getId());
+            orderVO.setOrderDetailList(orderDetailList);
+            
+            // 构建订单菜品信息字符串
+            StringBuilder orderDishes = new StringBuilder();
+            for (OrderDetail orderDetail : orderDetailList) {
+                orderDishes.append(orderDetail.getName()).append("*").append(orderDetail.getNumber()).append(";");
+            }
+            orderVO.setOrderDishes(orderDishes.toString());
+            
+            orderVOList.add(orderVO);
+        }
+        
+        return new PageResult(pageInfo.getTotal(), orderVOList);
+    }
+
+    /**
+     * 查询订单详情
+     * @param id
+     * @return
+     */
+    @Override
+    public OrderVO getOrderDetailById(Long id) {
+        // 查询订单基本信息
+        Orders order = orderMapper.getById(id);
+        if (order == null) {
+            throw new OrderBusinessException("订单不存在");
+        }
+        
+        // 校验订单是否属于当前用户
+        Long currentUserId = BaseContext.getCurrentId();
+        if (!order.getUserId().equals(currentUserId)) {
+            throw new OrderBusinessException("无权查看该订单");
+        }
+        
+        // 查询订单明细
+        List<OrderDetail> orderDetailList = orderDetailMapper.getByOrderId(id);
+        
+        // 构建OrderVO对象
+        OrderVO orderVO = new OrderVO();
+        BeanUtils.copyProperties(order, orderVO);
+        orderVO.setOrderDetailList(orderDetailList);
+        
+        // 构建订单菜品信息字符串
+        StringBuilder orderDishes = new StringBuilder();
+        for (OrderDetail orderDetail : orderDetailList) {
+            orderDishes.append(orderDetail.getName()).append("*").append(orderDetail.getNumber()).append(";");
+        }
+        orderVO.setOrderDishes(orderDishes.toString());
+        
+        return orderVO;
+    }
+
+    /**
+     * 用户取消订单
+     * @param id
+     */
+    @Override
+    @Transactional
+    public void cancelOrder(Long id) {
+        // 查询订单
+        Orders ordersDB = orderMapper.getById(id);
+        if (ordersDB == null) {
+            throw new OrderBusinessException("订单不存在");
+        }
+        
+        // 校验订单是否属于当前用户
+        Long currentUserId = BaseContext.getCurrentId();
+        if (!ordersDB.getUserId().equals(currentUserId)) {
+            throw new OrderBusinessException("无权取消该订单");
+        }
+        
+        // 校验订单状态：只有状态为待付款(1)或待接单(2)时才允许取消
+        if (ordersDB.getStatus() > Orders.TO_BE_CONFIRMED) {
+            throw new OrderBusinessException("当前订单状态不允许取消");
+        }
+        
+        // 构造更新对象
+        Orders orders = Orders.builder()
+                .id(ordersDB.getId())
+                .status(Orders.CANCELLED) // 状态改为6（已取消）
+                .cancelReason("用户主动取消")
+                .cancelTime(LocalDateTime.now())
+                .build();
+        
+        // 如果是已支付（待接单）状态取消，理论上需要调用微信退款接口
+        // 但由于我们是模拟支付，此处只需修改订单状态
+        if (ordersDB.getStatus().equals(Orders.TO_BE_CONFIRMED)) {
+            // 已支付订单取消，可以记录退款相关信息
+            log.info("订单{}已支付，模拟退款处理", id);
+        }
+        
+        // 执行更新
+        orderMapper.update(orders);
+    }
+
+    /**
+     * 获取当前登录用户ID
+     * @return
+     */
+    private Long getCurrentUserId() {
+        return BaseContext.getCurrentId();
+    }
+}

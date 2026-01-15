@@ -1,6 +1,7 @@
 package com.sky.config;
 
 import com.sky.interceptor.JwtTokenAdminInterceptor;
+import com.sky.interceptor.JwtTokenUserInterceptor;
 import com.sky.json.JacksonObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -30,6 +31,9 @@ public class WebMvcConfiguration extends WebMvcConfigurationSupport {
     @Autowired
     private JwtTokenAdminInterceptor jwtTokenAdminInterceptor;
 
+    @Autowired
+    private JwtTokenUserInterceptor jwtTokenUserInterceptor; // 新增：注入用户端拦截器
+
     /**
      * 注册自定义拦截器
      *
@@ -43,6 +47,12 @@ public class WebMvcConfiguration extends WebMvcConfigurationSupport {
                 .addPathPatterns("/admin/**")
                 .excludePathPatterns("/admin/employee/login");
                 //登录的话就不拦截
+
+        // 2. 用户端拦截器（新增）
+        registry.addInterceptor(jwtTokenUserInterceptor)
+                .addPathPatterns("/user/**")             // 拦截所有用户端接口 [cite: 1363]
+                .excludePathPatterns("/user/user/login") // 排除登录接口 [cite: 1364]
+                .excludePathPatterns("/user/shop/status"); // 排除查询店铺状态接口 [cite: 1364]
     }
 
     /**
@@ -88,4 +98,39 @@ public class WebMvcConfiguration extends WebMvcConfigurationSupport {
         // 将我们自己的转换器放入容器中，并排在第一位 (这样Spring就会优先使用它)
         converters.add(0, converter);
     }
+
+    @Bean
+    public Docket docket1() {
+        return new Docket(DocumentationType.SWAGGER_2)
+                .groupName("管理端接口") // 分组名称 [cite: 1067]
+                .apiInfo(apiInfo())
+                .select()
+                .apis(RequestHandlerSelectors.basePackage("com.sky.controller.admin")) // 扫描 admin 包 [cite: 1071]
+                .paths(PathSelectors.any())
+                .build();
+    }
+
+    @Bean
+    public Docket docket2() {
+        return new Docket(DocumentationType.SWAGGER_2)
+                .groupName("用户端接口") // 分组名称 [cite: 1085]
+                .apiInfo(apiInfo())
+                .select()
+                .apis(RequestHandlerSelectors.basePackage("com.sky.controller.user")) // 扫描 user 包 [cite: 1089]
+                .paths(PathSelectors.any())
+                .build();
+    }
+
+    /**
+     * 返回接口文档的具体信息
+     */
+    private ApiInfo apiInfo() {
+        return new ApiInfoBuilder()
+                .title("苍穹外卖项目接口文档") // 文档标题 [cite: 1062, 1080]
+                .version("2.0")             // 版本号 [cite: 1063, 1081]
+                .description("苍穹外卖项目接口文档") // 描述信息 [cite: 1064, 1082]
+                .build();
+    }
+
+
 }
