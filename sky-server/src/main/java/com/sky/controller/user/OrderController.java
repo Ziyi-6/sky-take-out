@@ -38,19 +38,6 @@ public class OrderController {
     }
 
     /**
-     * 模拟支付接口
-     * @param number 订单号
-     * @return
-     */
-    @GetMapping("/simulatePay/{number}")
-    @ApiOperation("模拟支付")
-    public Result<String> simulatePay(@PathVariable String number) {
-        log.info("模拟支付，订单号：{}", number);
-        orderService.paySuccess(number);
-        return Result.success("支付成功");
-    }
-
-    /**
      * 订单支付
      * @param orderPaymentDTO
      * @return
