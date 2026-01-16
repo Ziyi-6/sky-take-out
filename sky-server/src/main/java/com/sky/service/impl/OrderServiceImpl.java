@@ -14,6 +14,7 @@ import com.sky.mapper.*;
 import com.sky.result.PageResult;
 import com.sky.service.OrderService;
 import com.sky.vo.OrderPaymentVO;
+import com.sky.vo.OrderStatisticsVO;
 import com.sky.vo.OrderSubmitVO;
 import com.sky.vo.OrderVO;
 import lombok.extern.slf4j.Slf4j;
@@ -26,6 +27,9 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+
+import com.sky.dto.OrdersConfirmDTO;
+import com.sky.dto.OrdersRejectionDTO;
 
 @Service
 @Slf4j
@@ -260,10 +264,140 @@ public class OrderServiceImpl implements OrderService {
     }
 
     /**
+     * 根据条件分页查询订单
+     * @param ordersPageQueryDTO
+     * @return
+     */
+    @Override
+    public PageResult conditionSearch(OrdersPageQueryDTO ordersPageQueryDTO) {
+        // 开启分页
+        PageHelper.startPage(ordersPageQueryDTO.getPage(), ordersPageQueryDTO.getPageSize());
+        
+        // 分页查询 - 管理端查询不需要设置userId，可以查询所有订单
+        List<Orders> ordersList = orderMapper.pageQuery(ordersPageQueryDTO);
+        PageInfo<Orders> pageInfo = new PageInfo<>(ordersList);
+        
+        // 遍历订单列表，为每个订单查询订单明细
+        List<OrderVO> orderVOList = new ArrayList<>();
+        for (Orders order : ordersList) {
+            OrderVO orderVO = new OrderVO();
+            BeanUtils.copyProperties(order, orderVO);
+            
+            // 查询订单明细
+            List<OrderDetail> orderDetailList = orderDetailMapper.getByOrderId(order.getId());
+            orderVO.setOrderDetailList(orderDetailList);
+            
+            // 构建订单菜品信息字符串
+            StringBuilder orderDishes = new StringBuilder();
+            for (OrderDetail orderDetail : orderDetailList) {
+                orderDishes.append(orderDetail.getName()).append("*").append(orderDetail.getNumber()).append(";");
+            }
+            orderVO.setOrderDishes(orderDishes.toString());
+            
+            orderVOList.add(orderVO);
+        }
+        
+        return new PageResult(pageInfo.getTotal(), orderVOList);
+    }
+
+    /**
      * 获取当前登录用户ID
      * @return
      */
     private Long getCurrentUserId() {
         return BaseContext.getCurrentId();
+    }
+
+    /**
+     * 各个状态订单数量统计
+     * @return
+     */
+    @Override
+    public OrderStatisticsVO statistics() {
+        // 分别查询状态为2（待接单）、3（已接单）、4（派送中）的订单数量
+        Integer toBeConfirmedCount = orderMapper.countByStatus(Orders.TO_BE_CONFIRMED); // 2
+        Integer confirmedCount = orderMapper.countByStatus(Orders.CONFIRMED); // 3
+        Integer deliveryInProgressCount = orderMapper.countByStatus(Orders.DELIVERY_IN_PROGRESS); // 4
+        
+        // 构建OrderStatisticsVO对象
+        OrderStatisticsVO orderStatisticsVO = new OrderStatisticsVO();
+        orderStatisticsVO.setToBeConfirmed(toBeConfirmedCount);
+        orderStatisticsVO.setConfirmed(confirmedCount);
+        orderStatisticsVO.setDeliveryInProgress(deliveryInProgressCount);
+        
+        return orderStatisticsVO;
+    }
+
+    /**
+     * 商家接单
+     * @param ordersConfirmDTO
+     */
+    @Override
+    @Transactional
+    public void confirm(OrdersConfirmDTO ordersConfirmDTO) {
+        // 查询订单
+        Orders ordersDB = orderMapper.getById(ordersConfirmDTO.getId());
+        if (ordersDB == null) {
+            throw new OrderBusinessException("订单不存在");
+        }
+        
+        // 校验订单状态：只有待接单状态才能接单
+        if (!ordersDB.getStatus().equals(Orders.TO_BE_CONFIRMED)) {
+            throw new OrderBusinessException("当前订单状态不允许接单");
+        }
+        
+        // 构造更新对象，将订单状态修改为已接单
+        Orders orders = Orders.builder()
+                .id(ordersDB.getId())
+                .status(Orders.CONFIRMED) // 状态改为3（已接单）
+                .build();
+        
+        // 执行更新
+        orderMapper.update(orders);
+        
+        log.info("商家接单成功，订单ID：{}", ordersConfirmDTO.getId());
+    }
+
+    /**
+     * 商家拒单
+     * @param ordersRejectionDTO
+     */
+    @Override
+    @Transactional
+    public void rejection(OrdersRejectionDTO ordersRejectionDTO) {
+        // 查询订单
+        Orders ordersDB = orderMapper.getById(ordersRejectionDTO.getId());
+        if (ordersDB == null) {
+            throw new OrderBusinessException("订单不存在");
+        }
+        
+        // 校验订单状态：只有待接单状态才能拒单
+        if (!ordersDB.getStatus().equals(Orders.TO_BE_CONFIRMED)) {
+            throw new OrderBusinessException("当前订单状态不允许拒单");
+        }
+        
+        // 如果订单已支付，需要退款
+        if (ordersDB.getPayStatus() != null && ordersDB.getPayStatus().equals(Orders.PAID)) {
+            // 模拟退款逻辑：修改支付状态为退款
+            Orders refundOrder = Orders.builder()
+                    .id(ordersDB.getId())
+                    .payStatus(Orders.REFUND) // 支付状态改为退款
+                    .build();
+            orderMapper.update(refundOrder);
+            log.info("订单已支付，执行退款操作，订单ID：{}", ordersRejectionDTO.getId());
+        }
+        
+        // 构造更新对象，将订单状态修改为已取消，并记录拒单原因和时间
+        Orders orders = Orders.builder()
+                .id(ordersDB.getId())
+                .status(Orders.CANCELLED) // 状态改为6（已取消）
+                .rejectionReason(ordersRejectionDTO.getRejectionReason()) // 记录拒单原因
+                .cancelTime(LocalDateTime.now()) // 记录取消时间
+                .build();
+        
+        // 执行更新
+        orderMapper.update(orders);
+        
+        log.info("商家拒单成功，订单ID：{}，拒单原因：{}", ordersRejectionDTO.getId(), ordersRejectionDTO.getRejectionReason());
     }
 }
