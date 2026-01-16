@@ -42,7 +42,7 @@ public interface OrderMapper {
      * 更新订单信息
      * @param orders
      */
-    @Update("update orders set status = #{status}, pay_status = #{payStatus}, checkout_time = #{checkoutTime} where id = #{id}")
+
     void update(Orders orders);
 
     /**
