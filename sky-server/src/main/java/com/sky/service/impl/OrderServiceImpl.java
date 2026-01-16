@@ -30,6 +30,7 @@ import java.util.List;
 
 import com.sky.dto.OrdersConfirmDTO;
 import com.sky.dto.OrdersRejectionDTO;
+import com.sky.dto.OrdersCancelDTO;
 
 @Service
 @Slf4j
@@ -399,5 +400,104 @@ public class OrderServiceImpl implements OrderService {
         orderMapper.update(orders);
         
         log.info("商家拒单成功，订单ID：{}，拒单原因：{}", ordersRejectionDTO.getId(), ordersRejectionDTO.getRejectionReason());
+    }
+
+    /**
+     * 派送订单
+     * @param id 订单ID
+     */
+    @Override
+    @Transactional
+    public void delivery(Long id) {
+        // 查询订单
+        Orders ordersDB = orderMapper.getById(id);
+        if (ordersDB == null) {
+            throw new OrderBusinessException("订单不存在");
+        }
+        
+        // 校验订单状态：只有已接单状态才能派送
+        if (!ordersDB.getStatus().equals(Orders.CONFIRMED)) {
+            throw new OrderBusinessException("当前订单状态不允许派送");
+        }
+        
+        // 构造更新对象，将订单状态修改为派送中
+        Orders orders = Orders.builder()
+                .id(id)
+                .status(Orders.DELIVERY_IN_PROGRESS) // 状态改为4（派送中）
+                .build();
+        
+        // 执行更新
+        orderMapper.update(orders);
+        
+        log.info("订单派送成功，订单ID：{}", id);
+    }
+
+    /**
+     * 完成订单
+     * @param id 订单ID
+     */
+    @Override
+    @Transactional
+    public void complete(Long id) {
+        // 查询订单
+        Orders ordersDB = orderMapper.getById(id);
+        if (ordersDB == null) {
+            throw new OrderBusinessException("订单不存在");
+        }
+        
+        // 校验订单状态：只有派送中状态才能完成
+        if (!ordersDB.getStatus().equals(Orders.DELIVERY_IN_PROGRESS)) {
+            throw new OrderBusinessException("当前订单状态不允许完成");
+        }
+        
+        // 构造更新对象，将订单状态修改为已完成，并记录送达时间
+        Orders orders = Orders.builder()
+                .id(id)
+                .status(Orders.COMPLETED) // 状态改为5（已完成）
+                .deliveryTime(LocalDateTime.now()) // 记录送达时间
+                .build();
+        
+        // 执行更新
+        orderMapper.update(orders);
+        
+        log.info("订单完成成功，订单ID：{}", id);
+    }
+
+    /**
+     * 商家取消订单
+     * @param ordersCancelDTO
+     */
+    @Override
+    @Transactional
+    public void cancelByAdmin(OrdersCancelDTO ordersCancelDTO) {
+        // 查询订单
+        Orders ordersDB = orderMapper.getById(ordersCancelDTO.getId());
+        if (ordersDB == null) {
+            throw new OrderBusinessException("订单不存在");
+        }
+        
+        // 如果订单已支付，需要退款
+        if (ordersDB.getPayStatus() != null && ordersDB.getPayStatus().equals(Orders.PAID)) {
+            // 模拟退款逻辑：修改支付状态为退款
+            Orders refundOrder = Orders.builder()
+                    .id(ordersCancelDTO.getId())
+                    .payStatus(Orders.REFUND) // 支付状态改为退款
+                    .build();
+            orderMapper.update(refundOrder);
+            log.info("订单已支付，执行退款操作，订单ID：{}", ordersCancelDTO.getId());
+        }
+        
+        // 构造更新对象，将订单状态修改为已取消，并记录取消原因和时间
+        Orders orders = Orders.builder()
+                .id(ordersCancelDTO.getId())
+                .status(Orders.CANCELLED) // 状态改为6（已取消）
+                .cancelReason(ordersCancelDTO.getCancelReason()) // 记录取消原因
+                .cancelTime(LocalDateTime.now()) // 记录取消时间
+                .build();
+        
+        // 执行更新
+        orderMapper.update(orders);
+        
+        log.info("商家取消订单成功，订单ID：{}，取消原因：{}", ordersCancelDTO.getId(), ordersCancelDTO.getCancelReason());
     }
 }
