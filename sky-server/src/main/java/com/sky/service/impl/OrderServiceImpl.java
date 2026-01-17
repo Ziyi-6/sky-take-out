@@ -514,10 +514,18 @@ public class OrderServiceImpl implements OrderService {
      */
     @Override
     public void paySuccess(String outTradeNo) {
-        // 根据订单号查询订单
-        Orders ordersDB = orderMapper.getByNumberAndUserId(outTradeNo, null);
+        // 1. 获取当前登录用户的ID
+        Long userId = BaseContext.getCurrentId();
+        
+        // 2. 根据订单号和用户ID查询订单
+        Orders ordersDB = orderMapper.getByNumberAndUserId(outTradeNo, userId);
+        
+        // 判空处理（防止未来异常）
+        if (ordersDB == null) {
+            throw new OrderBusinessException("订单不存在");
+        }
 
-        // 根据订单id更新订单的状态、支付方式、支付状态、结账时间
+        // 3. 根据订单id更新订单的状态、支付方式、支付状态、结账时间
         Orders orders = Orders.builder()
                 .id(ordersDB.getId())
                 .status(Orders.TO_BE_CONFIRMED)
@@ -527,7 +535,7 @@ public class OrderServiceImpl implements OrderService {
 
         orderMapper.update(orders);
         
-        // 通过WebSocket向客户端推送消息 type=1表示来单提醒
+        // 4. 通过WebSocket向客户端推送消息 type=1表示来单提醒
         Map<String, Object> map = new HashMap<>();
         map.put("type", 1); // 1表示来单提醒
         map.put("orderId", ordersDB.getId());
