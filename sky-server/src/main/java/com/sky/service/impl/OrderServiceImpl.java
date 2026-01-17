@@ -1,5 +1,6 @@
 package com.sky.service.impl;
 
+import com.alibaba.fastjson.JSON;
 import com.github.pagehelper.Page;
 import com.github.pagehelper.PageHelper;
 import com.github.pagehelper.PageInfo;
@@ -17,6 +18,7 @@ import com.sky.vo.OrderPaymentVO;
 import com.sky.vo.OrderStatisticsVO;
 import com.sky.vo.OrderSubmitVO;
 import com.sky.vo.OrderVO;
+import com.sky.websocket.WebSocketServer;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -26,7 +28,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import com.sky.dto.OrdersConfirmDTO;
 import com.sky.dto.OrdersRejectionDTO;
@@ -50,6 +54,9 @@ public class OrderServiceImpl implements OrderService {
     
     @Autowired
     private UserMapper userMapper;
+    
+    @Autowired
+    private WebSocketServer webSocketServer;
 
     /**
      * 用户下单
@@ -125,22 +132,22 @@ public class OrderServiceImpl implements OrderService {
      * 模拟支付成功
      * @param orderNumber
      */
-    @Override
-    public void paySuccess(String orderNumber) {
-        // 1. 根据订单号查询订单
-        Orders ordersDB = orderMapper.getByNumberAndUserId(orderNumber, BaseContext.getCurrentId());
-
-        // 2. 构造新对象，只修改需要更新的字段（符合开发规范）
-        Orders orders = Orders.builder()
-                .id(ordersDB.getId())
-                .status(Orders.TO_BE_CONFIRMED) // 状态改为 2（待接单）
-                .payStatus(Orders.PAID)         // 支付状态改为 1（已支付）
-                .checkoutTime(LocalDateTime.now()) // 记录结账时间
-                .build();
-
-        // 3. 执行更新
-        orderMapper.update(orders);
-    }
+//    @Override
+//    public void paySuccess(String orderNumber) {
+//        // 1. 根据订单号查询订单
+//        Orders ordersDB = orderMapper.getByNumberAndUserId(orderNumber, BaseContext.getCurrentId());
+//
+//        // 2. 构造新对象，只修改需要更新的字段（符合开发规范）
+//        Orders orders = Orders.builder()
+//                .id(ordersDB.getId())
+//                .status(Orders.TO_BE_CONFIRMED) // 状态改为 2（待接单）
+//                .payStatus(Orders.PAID)         // 支付状态改为 1（已支付）
+//                .checkoutTime(LocalDateTime.now()) // 记录结账时间
+//                .build();
+//
+//        // 3. 执行更新
+//        orderMapper.update(orders);
+//    }
 
     /**
      * 查询历史订单
@@ -499,5 +506,36 @@ public class OrderServiceImpl implements OrderService {
         orderMapper.update(orders);
         
         log.info("商家取消订单成功，订单ID：{}，取消原因：{}", ordersCancelDTO.getId(), ordersCancelDTO.getCancelReason());
+    }
+
+    /**
+     * 支付成功，修改订单状态
+     * @param outTradeNo
+     */
+    @Override
+    public void paySuccess(String outTradeNo) {
+        // 根据订单号查询订单
+        Orders ordersDB = orderMapper.getByNumberAndUserId(outTradeNo, null);
+
+        // 根据订单id更新订单的状态、支付方式、支付状态、结账时间
+        Orders orders = Orders.builder()
+                .id(ordersDB.getId())
+                .status(Orders.TO_BE_CONFIRMED)
+                .payStatus(Orders.PAID)
+                .checkoutTime(LocalDateTime.now())
+                .build();
+
+        orderMapper.update(orders);
+        
+        // 通过WebSocket向客户端推送消息 type=1表示来单提醒
+        Map<String, Object> map = new HashMap<>();
+        map.put("type", 1); // 1表示来单提醒
+        map.put("orderId", ordersDB.getId());
+        map.put("content", "订单号：" + outTradeNo);
+        
+        String json = JSON.toJSONString(map);
+        webSocketServer.sendToAllClient(json);
+        
+        log.info("支付成功，订单号：{}，已向客户端推送来单提醒", outTradeNo);
     }
 }
