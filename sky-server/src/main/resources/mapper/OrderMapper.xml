@@ -104,4 +104,15 @@
         where id = #{id}
     </update>
 
+    <!-- 根据状态和下单时间查询订单 -->
+    <select id="getByStatusAndOrderTimeLT" resultType="com.sky.entity.Orders">
+        select * from orders 
+        where status = #{status} and order_time <![CDATA[<]]> #{time}
+    </select>
+
+    <!-- 根据状态查询订单 -->
+    <select id="getByStatus" resultType="com.sky.entity.Orders">
+        select * from orders where status = #{status}
+    </select>
+
 </mapper>
