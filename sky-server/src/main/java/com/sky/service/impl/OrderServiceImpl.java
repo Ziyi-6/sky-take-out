@@ -546,4 +546,28 @@ public class OrderServiceImpl implements OrderService {
         
         log.info("支付成功，订单号：{}，已向客户端推送来单提醒", outTradeNo);
     }
+
+    /**
+     * 客户催单
+     * @param id 订单ID
+     */
+    @Override
+    public void reminder(Long id) {
+        // 查询订单
+        Orders ordersDB = orderMapper.getById(id);
+        if (ordersDB == null) {
+            throw new OrderBusinessException("订单不存在");
+        }
+        
+        // 通过WebSocket向客户端推送催单消息 type=2表示客户催单
+        Map<String, Object> map = new HashMap<>();
+        map.put("type", 2); // 2表示客户催单
+        map.put("orderId", ordersDB.getId());
+        map.put("content", "订单号：" + ordersDB.getNumber());
+        
+        String json = JSON.toJSONString(map);
+        webSocketServer.sendToAllClient(json);
+        
+        log.info("客户催单，订单ID：{}，订单号：{}，已向客户端推送催单提醒", id, ordersDB.getNumber());
+    }
 }

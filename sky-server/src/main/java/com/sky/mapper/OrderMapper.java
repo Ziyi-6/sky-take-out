@@ -32,11 +32,10 @@ public interface OrderMapper {
     Orders getByNumberAndUserId(String number, Long userId);
 
     /**
-     * 根据ID查询订单
+     * 根据id查询订单
      * @param id
      * @return
      */
-    @Select("select * from orders where id = #{id}")
     Orders getById(Long id);
 
     /**
