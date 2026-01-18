@@ -22,6 +22,8 @@ import java.io.InputStream;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.Arrays;
+import java.util.List;
 
 @RestController
 @RequestMapping("/admin/report")
@@ -117,10 +119,17 @@ public class ReportController {
             // 2. 通过POI将数据写入Excel
             InputStream inputStream = this.getClass().getClassLoader().getResourceAsStream("template/运营数据报表模板.xlsx");
             
-            // 如果模板文件不存在，创建简单的Excel文件
             XSSFWorkbook excel;
             if (inputStream != null) {
                 excel = new XSSFWorkbook(inputStream);
+                XSSFSheet sheet = excel.getSheetAt(0);
+                
+                // 填充今日运营数据到模板
+                fillBusinessDataToExcel(sheet, businessData);
+                
+                // 填充历史统计数据到模板
+                fillHistoryDataToExcel(sheet, turnoverReport, orderReport, top10Report);
+                
             } else {
                 excel = new XSSFWorkbook();
                 XSSFSheet sheet = excel.createSheet("运营数据报表");
@@ -167,6 +176,91 @@ public class ReportController {
             log.info("Excel报表导出成功");
         } catch (Exception e) {
             log.error("Excel报表导出失败：", e);
+        }
+    }
+
+    /**
+     * 填充今日运营数据到Excel模板
+     * @param sheet
+     * @param businessData
+     */
+    private void fillBusinessDataToExcel(XSSFSheet sheet, BusinessDataVO businessData) {
+        // 根据模板结构填充数据，这里需要根据实际模板调整单元格位置
+        
+        // 示例填充逻辑（需要根据实际模板调整）：
+        // 营业额 - 假设在B2单元格
+        if (sheet.getRow(1) != null && sheet.getRow(1).getCell(1) != null) {
+            sheet.getRow(1).getCell(1).setCellValue(businessData.getTurnover());
+        }
+        
+        // 有效订单数 - 假设在B3单元格
+        if (sheet.getRow(2) != null && sheet.getRow(2).getCell(1) != null) {
+            sheet.getRow(2).getCell(1).setCellValue(businessData.getValidOrderCount());
+        }
+        
+        // 订单完成率 - 假设在B4单元格
+        if (sheet.getRow(3) != null && sheet.getRow(3).getCell(1) != null) {
+            sheet.getRow(3).getCell(1).setCellValue(businessData.getOrderCompletionRate());
+        }
+        
+        // 平均客单价 - 假设在B5单元格
+        if (sheet.getRow(4) != null && sheet.getRow(4).getCell(1) != null) {
+            sheet.getRow(4).getCell(1).setCellValue(businessData.getUnitPrice());
+        }
+        
+        // 新增用户数 - 假设在B6单元格
+        if (sheet.getRow(5) != null && sheet.getRow(5).getCell(1) != null) {
+            sheet.getRow(5).getCell(1).setCellValue(businessData.getNewUsers());
+        }
+    }
+
+    /**
+     * 填充历史统计数据到Excel模板
+     * @param sheet
+     * @param turnoverReport
+     * @param orderReport
+     * @param top10Report
+     */
+    private void fillHistoryDataToExcel(XSSFSheet sheet, TurnoverReportVO turnoverReport, 
+                                      OrderReportVO orderReport, SalesTop10ReportVO top10Report) {
+        // 根据模板结构填充历史统计数据
+        // 这里需要根据实际模板调整单元格位置
+        
+        // 示例：填充最近30天总营业额
+        if (sheet.getRow(7) != null && sheet.getRow(7).getCell(1) != null && turnoverReport.getTurnoverList() != null) {
+            // 将逗号分隔的字符串转换为Double数组，然后求和
+            Double totalTurnover = Arrays.stream(turnoverReport.getTurnoverList().split(","))
+                    .mapToDouble(Double::parseDouble)
+                    .sum();
+            sheet.getRow(7).getCell(1).setCellValue(totalTurnover);
+        }
+        
+        // 示例：填充最近30天总订单数
+        if (sheet.getRow(8) != null && sheet.getRow(8).getCell(1) != null && orderReport.getOrderCountList() != null) {
+            // 将逗号分隔的字符串转换为Integer数组，然后求和
+            Integer totalOrders = Arrays.stream(orderReport.getOrderCountList().split(","))
+                    .mapToInt(Integer::parseInt)
+                    .sum();
+            sheet.getRow(8).getCell(1).setCellValue(totalOrders);
+        }
+        
+        // 示例：填充销量Top10数据
+        if (top10Report != null && top10Report.getNameList() != null && top10Report.getNumberList() != null) {
+            // 将逗号分隔的字符串转换为列表
+            List<String> nameList = Arrays.asList(top10Report.getNameList().split(","));
+            List<String> numberList = Arrays.asList(top10Report.getNumberList().split(","));
+            
+            for (int i = 0; i < Math.min(nameList.size(), 10); i++) {
+                int rowIndex = 10 + i;
+                if (sheet.getRow(rowIndex) != null) {
+                    if (sheet.getRow(rowIndex).getCell(0) != null) {
+                        sheet.getRow(rowIndex).getCell(0).setCellValue(nameList.get(i));
+                    }
+                    if (sheet.getRow(rowIndex).getCell(1) != null) {
+                        sheet.getRow(rowIndex).getCell(1).setCellValue(Integer.parseInt(numberList.get(i)));
+                    }
+                }
+            }
         }
     }
 }
