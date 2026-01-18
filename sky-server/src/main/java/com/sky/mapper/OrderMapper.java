@@ -6,6 +6,7 @@ import org.apache.ibatis.annotations.*;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 @Mapper
 public interface OrderMapper {
@@ -13,13 +14,6 @@ public interface OrderMapper {
      * 插入订单数据
      * @param orders
      */
-    @Insert("insert into orders (number, status, user_id, address_book_id, order_time, checkout_time, " +
-            "pay_method, pay_status, amount, remark, phone, address, consignee, estimated_delivery_time, " +
-            "delivery_status, tableware_number, tableware_status, pack_amount) " +
-            "values (#{number}, #{status}, #{userId}, #{addressBookId}, #{orderTime}, #{checkoutTime}, " +
-            "#{payMethod}, #{payStatus}, #{amount}, #{remark}, #{phone}, #{address}, #{consignee}, " +
-            "#{estimatedDeliveryTime}, #{deliveryStatus}, #{tablewareNumber}, #{tablewareStatus}, #{packAmount})")
-    @Options(useGeneratedKeys = true, keyProperty = "id")
     void insert(Orders orders);
 
     /**
@@ -28,7 +22,6 @@ public interface OrderMapper {
      * @param userId
      * @return
      */
-    @Select("select * from orders where number = #{number} and user_id = #{userId}")
     Orders getByNumberAndUserId(String number, Long userId);
 
     /**
@@ -42,7 +35,6 @@ public interface OrderMapper {
      * 更新订单信息
      * @param orders
      */
-
     void update(Orders orders);
 
     /**
@@ -58,7 +50,6 @@ public interface OrderMapper {
      * @param status
      * @return
      */
-    @Select("select count(id) from orders where user_id = #{userId} and status = #{status}")
     Integer countByUserIdAndStatus(Long userId, Integer status);
 
     /**
@@ -66,7 +57,6 @@ public interface OrderMapper {
      * @param status
      * @return
      */
-    @Select("select count(id) from orders where status = #{status}")
     Integer countByStatus(Integer status);
 
     /**
@@ -83,4 +73,25 @@ public interface OrderMapper {
      * @return
      */
     List<Orders> getByStatus(Integer status);
+
+    /**
+     * 根据条件统计营业额
+     * @param map 查询条件
+     * @return
+     */
+    Double sumByMap(Map<String, Object> map);
+
+    /**
+     * 根据条件统计订单数量
+     * @param map 查询条件
+     * @return
+     */
+    Integer countByMap(Map<String, Object> map);
+
+    /**
+     * 查询销量排名Top10
+     * @param map 查询条件
+     * @return
+     */
+    List<Map<String, Object>> getSalesTop10(Map<String, Object> map);
 }

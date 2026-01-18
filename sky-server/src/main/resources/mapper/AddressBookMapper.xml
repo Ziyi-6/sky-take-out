@@ -1,6 +1,66 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
-        "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="com.sky.mapper.AddressBookMapper">
+
+    <select id="list" parameterType="AddressBook" resultType="com.sky.entity.AddressBook">
+        select * from address_book
+        <where>
+            <if test="userId != null">
+                and user_id = #{userId}
+            </if>
+            <if test="consignee != null and consignee != ''">
+                and consignee like concat('%',#{consignee},'%')
+            </if>
+            <if test="phone != null and phone != ''">
+                and phone = #{phone}
+            </if>
+            <if test="isDefault != null">
+                and is_default = #{isDefault}
+            </if>
+        </where>
+        order by is_default desc
+    </select>
+
+    <update id="update" parameterType="AddressBook">
+        update address_book
+        <set>
+            <if test="consignee != null">consignee = #{consignee},</if>
+            <if test="phone != null">phone = #{phone},</if>
+            <if test="sex != null">sex = #{sex},</if>
+            <if test="provinceCode != null">province_code = #{provinceCode},</if>
+            <if test="provinceName != null">province_name = #{provinceName},</if>
+            <if test="cityCode != null">city_code = #{cityCode},</if>
+            <if test="cityName != null">city_name = #{cityName},</if>
+            <if test="districtCode != null">district_code = #{districtCode},</if>
+            <if test="districtName != null">district_name = #{districtName},</if>
+            <if test="detail != null">detail = #{detail},</if>
+            <if test="label != null">label = #{label},</if>
+            <if test="isDefault != null">is_default = #{isDefault}</if>
+        </set>
+        where id = #{id}
+    </update>
+
+    <update id="updateIsDefaultByUserId" parameterType="AddressBook">
+        update address_book
+        set is_default = #{isDefault}
+        where user_id = #{userId}
+    </update>
+
+</mapper>
+
+
+## 问题总结
+
+错误信息显示：`外部 DTD: 无法读取外部 DTD 'mybatis-3.mapper.dtd', 因为 accessExternalDTD 属性设置的限制导致不允许 'http' 访问`
+
+这是因为Java的安全策略限制了对外部DTD的HTTP访问。解决方案是将所有XML文件中的DTD声明从HTTP改为HTTPS。
+
+## 修复所有Mapper XML文件的DTD声明
+
+以下是所有需要修复的Mapper XML文件：
+```xml
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd" >
 <mapper namespace="com.sky.mapper.AddressBookMapper">
 
     <select id="list" parameterType="AddressBook" resultType="com.sky.entity.AddressBook">

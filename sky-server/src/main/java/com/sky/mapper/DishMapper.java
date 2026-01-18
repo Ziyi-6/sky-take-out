@@ -4,13 +4,13 @@ import com.github.pagehelper.Page;
 import com.sky.annotation.AutoFill;
 import com.sky.dto.DishPageQueryDTO;
 import com.sky.entity.Dish;
-import com.sky.entity.SetmealDish;
 import com.sky.enumeration.OperationType;
 import com.sky.vo.DishVO;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Select;
 
 import java.util.List;
+import java.util.Map;
 
 @Mapper
 public interface DishMapper {
@@ -77,4 +77,11 @@ public interface DishMapper {
      */
     @Select("select * from dish where category_id= #{categoryId}")
     List<Dish> getDishesByCategoryId(Long categoryId);
+    
+    /**
+     * 根据条件统计菜品数量
+     * @param map 查询条件
+     * @return
+     */
+    Integer countByMap(Map<String, Object> map);
 }

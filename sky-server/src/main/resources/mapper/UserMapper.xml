@@ -8,4 +8,22 @@
         values (#{openid}, #{name}, #{phone}, #{sex}, #{idNumber}, #{avatar}, #{createTime})
     </insert>
 
+    <!-- 根据openid查询用户 -->
+    <select id="getByOpenid" resultType="com.sky.entity.User">
+        select * from user where openid = #{openid}
+    </select>
+
+    <!-- 根据条件统计用户数量 -->
+    <select id="countByMap" resultType="java.lang.Integer">
+        select count(id) from user
+        <where>
+            <if test="begin != null">
+                and create_time >= #{begin}
+            </if>
+            <if test="end != null">
+                and create_time &lt;= #{end}
+            </if>
+        </where>
+    </select>
+
 </mapper>
