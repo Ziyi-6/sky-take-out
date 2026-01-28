@@ -1,0 +1,13 @@
+server:
+  port: 8081 # 必须改端口，因为 8080 被苍穹外卖主服务占用了
+
+spring:
+  application:
+    name: sky-ai-service
+  ai:
+    openai:
+      api-key: sk-99ee30b59486452fa516623f1d997543 # 填你的 DeepSeek Key
+      base-url: https://api.deepseek.com
+      chat:
+        options:
+          model: deepseek-chat

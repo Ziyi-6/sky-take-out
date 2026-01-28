@@ -42,15 +42,8 @@ public class AutoFillAspect {
     public void autoFill(JoinPoint joinPoint) {
         log.info("开始进行公共字段自动填充...");
 
-        // 1. 获取当前被拦截的方法上的数据库操作类型 (INSERT 还是 UPDATE?)
-
-        //joinPoint.getSignature()从 “访客信息单” 里拿 “方法签名”（方法的唯一标识）
-        //强制转成 MethodSignature（因为要获取方法对象）
         MethodSignature signature = (MethodSignature) joinPoint.getSignature(); // 方法签名
-        //signature.getMethod() 获取被拦截的方法对象（比如 insert (Employee)、update (Category)）
-        //getAnnotation(AutoFill.class) 从方法对象上拿到贴的@AutoFill注解
         AutoFill autoFill = signature.getMethod().getAnnotation(AutoFill.class); // 获得注解
-        //autoFill.value()从 @AutoFill 注解里拿到操作类型（OperationType.INSERT/UPDATE）
         OperationType operationType = autoFill.value(); // 获得操作类型
 
         // 2. 获取到当前被拦截的方法的参数--实体对象 (比如 Employee, Category)

@@ -18,6 +18,14 @@ spring:
     password: ${sky.redis.password}
     database: ${sky.redis.database}
 
+  ai:
+    openai:
+      api-key: sk-57617243c1b24deab8033fd3e6b65c52  # 这里填你在 DeepSeek 申请的 Key
+      base-url: https://api.deepseek.com  # 必须改这个，不然默认连美国的 OpenAI
+      chat:
+        options:
+          model: deepseek-chat # 指定使用 deepseek 的模型
+
 
 mybatis:
   #mapper配置文件
